@@ -1,0 +1,8 @@
+{
+  "name": " Network Utilities Pro",
+  "description": "A comprehensive network toolset including Ping, Port Scanner, Subnet Calculator, Whois, and Speed Test.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
