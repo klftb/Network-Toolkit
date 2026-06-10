@@ -25,7 +25,7 @@ class PausableStream extends Transform {
   transferId: string;
   fileSize: number;
   isPausedFlag: boolean = false;
-  resumeCallback: (() => void) | null = null;
+  resumeCallback: ((err?: Error) => void) | null = null;
   loaded: number = 0;
 
   constructor(transferId: string, fileSize: number) {
@@ -43,9 +43,10 @@ class PausableStream extends Transform {
     }
 
     if (this.isPausedFlag) {
-      this.resumeCallback = () => {
+      this.resumeCallback = (err?: Error) => {
         this.resumeCallback = null;
-        callback(null, chunk);
+        if (err) callback(err);
+        else callback(null, chunk);
       };
     } else {
       callback(null, chunk);
