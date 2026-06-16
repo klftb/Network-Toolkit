@@ -1,39 +1,23 @@
 import React, { useState } from 'react'
 import { View, Text, Input, Button } from '@tarojs/components'
-import Taro from '@tarojs/taro'
+import { ipLookup } from '../../lib/api'
 import './index.scss'
 
-export default function IpLookup() {
-  const [ip, setIp] = useState('')
+export default function IpLookupPage() {
+  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState('')
 
   const handleLookup = async () => {
-    if (!ip.trim() && !result) {
-      // If empty, look up own IP
-    }
-    
     setLoading(true)
     setError('')
     setResult(null)
-
     try {
-      const target = ip.trim() || ''
-      // In a real mini program, we would send this to our cloud-backend proxy
-      // Here we use a public API directly (needs "不校验合法域名" in dev tools)
-      const res = await Taro.request({
-        url: `https://ipapi.co/${target ? target + '/' : ''}json/`,
-        method: 'GET'
-      })
-
-      if (res.data && res.data.ip) {
-        setResult(res.data)
-      } else {
-        setError(res.data.reason || '查询失败，请输入合法的IP地址')
-      }
+      const data = await ipLookup(query.trim() || undefined)
+      setResult(data)
     } catch (e: any) {
-      setError(e.errMsg || '网络请求失败，请在本地设置中勾选"不校验合法域名"')
+      setError(e.message || '查询失败，请确保后端服务已启动')
     } finally {
       setLoading(false)
     }
@@ -43,60 +27,57 @@ export default function IpLookup() {
     <View className='ip-page'>
       <View className='header'>
         <Text className='title'>公网 IP 探针</Text>
-        <Text className='subtitle'>精准归属地与 ISP 服务商查询</Text>
+        <Text className='subtitle'>支持 IP 地址与域名查询归属地</Text>
       </View>
 
       <View className='search-card'>
         <View className='input-wrapper'>
-          <Input 
-            value={ip} 
-            onInput={(e) => setIp(e.detail.value)}
-            placeholder='输入IP地址 (留空查本机)'
+          <Input
+            value={query}
+            onInput={(e) => setQuery(e.detail.value)}
+            placeholder='IP 或域名 (留空查本机)'
             className='ip-input'
           />
-          <Button 
-            className='search-btn' 
-            onClick={handleLookup} 
-            loading={loading}
-          >
+          <Button className='search-btn' onClick={handleLookup} loading={loading}>
             探测
           </Button>
         </View>
       </View>
 
-      {error && (
-        <View className='error-card'>
-          <Text>{error}</Text>
-        </View>
-      )}
+      {error ? (
+        <View className='error-card'><Text>{error}</Text></View>
+      ) : null}
 
-      {result && (
-        <View className='result-card animated'>
+      {result ? (
+        <View className='result-card'>
           <View className='main-ip'>
-            <Text className='label'>目标 IP</Text>
+            <Text className='label'>解析结果</Text>
             <Text className='value'>{result.ip}</Text>
           </View>
-          
           <View className='details-grid'>
             <View className='detail-item'>
               <Text className='label'>国家/地区</Text>
-              <Text className='value'>{result.country_name || '-'} {result.region || '-'}</Text>
+              <Text className='value'>{result.country} {result.region}</Text>
             </View>
             <View className='detail-item'>
               <Text className='label'>城市</Text>
-              <Text className='value'>{result.city || '-'}</Text>
+              <Text className='value'>{result.city}</Text>
             </View>
             <View className='detail-item'>
-              <Text className='label'>运营商 (ISP)</Text>
-              <Text className='value'>{result.org || '-'}</Text>
+              <Text className='label'>运营商</Text>
+              <Text className='value'>{result.isp}</Text>
             </View>
             <View className='detail-item'>
               <Text className='label'>ASN</Text>
-              <Text className='value'>{result.asn || '-'}</Text>
+              <Text className='value'>{result.asn}</Text>
+            </View>
+            <View className='detail-item'>
+              <Text className='label'>时区</Text>
+              <Text className='value'>{result.timezone}</Text>
             </View>
           </View>
         </View>
-      )}
+      ) : null}
     </View>
   )
 }

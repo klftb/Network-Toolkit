@@ -178,8 +178,134 @@ app.get("/api/whois", (req, res) => {
   });
 });
 
+// 4. IP Lookup Proxy (avoids 403 from third-party APIs in mini program)
+app.get("/api/iplookup", async (req, res) => {
+  const target = req.query.target || '';
+  const https = require('https');
+  const http = require('http');
+
+  const tryApi = (url, parse, useHttp) => {
+    return new Promise((resolve) => {
+      const mod = useHttp ? http : https;
+      const request = mod.get(url, { timeout: 6000 }, (response) => {
+        let body = '';
+        response.on('data', chunk => body += chunk);
+        response.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            const result = parse(data);
+            resolve(result);
+          } catch { resolve(null); }
+        });
+      });
+      request.on('error', () => resolve(null));
+      request.on('timeout', () => { request.destroy(); resolve(null); });
+    });
+  };
+
+  // Try ipwho.is first
+  let result = await tryApi(
+    `https://ipwho.is/${target}`,
+    (d) => d.success !== false ? {
+      ip: d.ip, country: d.country || '-', region: d.region || '-',
+      city: d.city || '-', isp: (d.connection?.org || d.connection?.isp || '-'),
+      asn: d.connection?.asn ? 'AS' + d.connection.asn : '-',
+      timezone: d.timezone?.id || '-'
+    } : null,
+    false
+  );
+
+  // Fallback to ip-api.com
+  if (!result) {
+    result = await tryApi(
+      `http://ip-api.com/json/${target}?lang=zh-CN`,
+      (d) => d.status === 'success' ? {
+        ip: d.query, country: d.country || '-', region: d.regionName || '-',
+        city: d.city || '-', isp: d.isp || d.org || '-',
+        asn: d.as ? d.as.split(' ')[0] : '-', timezone: d.timezone || '-'
+      } : null,
+      true
+    );
+  }
+
+  if (result) {
+    res.json(result);
+  } else {
+    res.status(502).json({ error: 'All upstream APIs failed' });
+  }
+});
+
 // Start Server (WeChat Cloud Run defaults to Port 80)
 const PORT = process.env.PORT || 80;
+
+// 5. Website Connectivity Test
+app.get("/api/website-test", async (req, res) => {
+  const sites = [
+    { name: "百度", host: "www.baidu.com", port: 443, category: "domestic" },
+    { name: "腾讯", host: "www.qq.com", port: 443, category: "domestic" },
+    { name: "阿里云", host: "www.aliyun.com", port: 443, category: "domestic" },
+    { name: "京东", host: "www.jd.com", port: 443, category: "domestic" },
+    { name: "哔哩哔哩", host: "www.bilibili.com", port: 443, category: "domestic" },
+    { name: "Google", host: "www.google.com", port: 443, category: "global" },
+    { name: "GitHub", host: "github.com", port: 443, category: "global" },
+    { name: "AWS", host: "aws.amazon.com", port: 443, category: "global" },
+    { name: "Azure", host: "portal.azure.com", port: 443, category: "global" },
+    { name: "Cloudflare", host: "www.cloudflare.com", port: 443, category: "global" },
+  ];
+
+  const testSite = (site) => {
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const sock = new net.Socket();
+      sock.setTimeout(3000);
+      sock.on("connect", () => {
+        const latency = Date.now() - start;
+        sock.destroy();
+        resolve({ ...site, alive: true, latency });
+      });
+      sock.on("error", (e) => {
+        resolve({ ...site, alive: false, error: e.message });
+      });
+      sock.on("timeout", () => {
+        sock.destroy();
+        resolve({ ...site, alive: false, error: "timeout" });
+      });
+      sock.connect(site.port, site.host);
+    });
+  };
+
+  const results = await Promise.all(sites.map(testSite));
+  res.json({ results });
+});
+
+// 6. Speed Test (generate random data for download speed measurement)
+app.get("/api/speedtest", (req, res) => {
+  const sizeMB = parseInt(req.query.size) || 1;
+  const bytes = Math.min(sizeMB, 10) * 1024 * 1024; // Max 10MB
+  res.set({
+    'Content-Type': 'application/octet-stream',
+    'Content-Length': bytes,
+    'Cache-Control': 'no-cache'
+  });
+  // Generate random chunks
+  const chunkSize = 65536;
+  let sent = 0;
+  const sendChunk = () => {
+    while (sent < bytes) {
+      const size = Math.min(chunkSize, bytes - sent);
+      const buf = Buffer.alloc(size, 0x41);
+      if (!res.write(buf)) {
+        sent += size;
+        res.once('drain', sendChunk);
+        return;
+      }
+      sent += size;
+    }
+    res.end();
+  };
+  sendChunk();
+});
+
 app.listen(PORT, () => {
   console.log(`Cloud Backend running on port ${PORT}`);
 });

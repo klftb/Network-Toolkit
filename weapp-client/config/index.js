@@ -13,6 +13,7 @@ export default defineConfig(async (merge, { command, mode }) => {
     framework: 'react',
     compiler: 'webpack5',
     mini: {
+      baseLevel: 4,
       postcss: {
         pxtransform: { enable: true, config: {} },
         url: { enable: true, config: { limit: 1024 } },

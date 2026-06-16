@@ -112,3 +112,16 @@
   border: 1px solid #bae6fd;
   .value { color: #0284c7; }
 }
+
+.result-card.highlight-green {
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  .value { color: #16a34a; }
+}
+
+.result-card.highlight-blue {
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  .value { color: #2563eb; }
+}
+

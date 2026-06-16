@@ -77,3 +77,11 @@
   opacity: 0.5;
   filter: grayscale(0.8);
 }
+
+.tool-card.featured {
+  grid-column: 1 / -1;
+  background-color: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  .icon { background: #ede9fe; }
+  .name { color: #7c3aed; }
+}
