@@ -1,0 +1,14 @@
+{
+  "name": "network-toolkit-cloud-backend",
+  "version": "1.0.0",
+  "description": "Cloud backend for Network Toolkit WeChat Mini Program",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ping": "^0.4.4",
+    "whois": "2.13.0"
+  }
+}

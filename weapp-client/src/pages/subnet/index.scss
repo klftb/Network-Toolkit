@@ -1,0 +1,114 @@
+.subnet-page {
+  min-height: 100vh;
+  background-color: #f6f6f6;
+  padding: 20px;
+  color: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei", sans-serif;
+  box-sizing: border-box;
+}
+
+.header {
+  margin-bottom: 24px;
+  padding-top: 10px;
+  .title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .subtitle {
+    font-size: 14px;
+    color: #666666;
+    display: block;
+  }
+}
+
+.input-card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.03);
+  padding: 20px;
+  margin-bottom: 24px;
+  
+  .input-group {
+    margin-bottom: 20px;
+    .label {
+      font-size: 14px;
+      color: #666666;
+      margin-bottom: 8px;
+      display: block;
+      font-weight: 500;
+    }
+    .input-wrapper {
+      background-color: #f8fafc;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      padding: 12px 16px;
+      
+      input {
+        width: 100%;
+        background: transparent;
+        color: #1a1a1a;
+        font-size: 16px;
+        border: none;
+        outline: none;
+      }
+    }
+  }
+  
+  .slider-group {
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      .label { font-size: 14px; color: #666666; font-weight: 500; }
+      .value { font-size: 18px; color: #0ea5e9; font-weight: 600; }
+    }
+    slider { margin: 0; width: 100%; }
+  }
+}
+
+.results-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 40px;
+}
+
+.result-card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.03);
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  
+  .info {
+    width: 100%;
+    .label {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 6px;
+      display: block;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+    }
+    .value {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1e293b;
+      font-family: monospace;
+      word-break: break-all;
+    }
+  }
+}
+
+.result-card.highlight {
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
+  .value { color: #0284c7; }
+}

@@ -1,0 +1,1 @@
+export default defineAppConfig({ pages: ['pages/index/index', 'pages/subnet/index', 'pages/ip/index', 'pages/ping/index'], window: { backgroundTextStyle: 'light', navigationBarBackgroundColor: '#f6f6f6', navigationBarTitleText: 'Network Toolkit', navigationBarTextStyle: 'black' } })
