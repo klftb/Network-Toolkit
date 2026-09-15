@@ -1,0 +1,417 @@
+.speedtest-page {
+  min-height: 100vh;
+  background-color: #0b132b;
+  padding: 16px;
+  box-sizing: border-box;
+  color: #ffffff;
+  padding-bottom: 60px;
+}
+
+// 头部网络信息与模式选择卡片
+.header-card {
+  background: rgba(28, 37, 65, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+
+  .isp-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+
+    .isp-left {
+      .isp-badge {
+        font-size: 10px;
+        color: #00b4d8;
+        display: block;
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+      }
+      .isp-name {
+        font-size: 13px;
+        font-weight: 700;
+        color: #f1f5f9;
+      }
+    }
+
+    .node-right {
+      .node-picker {
+        text-align: right;
+        .node-name {
+          font-size: 12px;
+          color: #94a3b8;
+          display: block;
+          max-width: 150px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .node-change {
+          font-size: 11px;
+          color: #38bdf8;
+          font-weight: 600;
+        }
+      }
+    }
+  }
+
+  .mode-selector-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+
+    .mode-label {
+      font-size: 11px;
+      color: #94a3b8;
+      flex-shrink: 0;
+    }
+
+    .mode-chips {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+
+      .mode-chip {
+        background: rgba(255, 255, 255, 0.05);
+        color: #94a3b8;
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        white-space: nowrap;
+        border: 1px solid transparent;
+        transition: all 0.2s ease;
+
+        &.active {
+          background: rgba(0, 180, 216, 0.2);
+          color: #38bdf8;
+          border-color: #00b4d8;
+          font-weight: 700;
+        }
+      }
+    }
+  }
+}
+
+// 测速核心卡片 (Speedometer)
+.speedometer-card {
+  background: radial-gradient(circle at center, #1c2541 0%, #0b132b 100%);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  border-radius: 20px;
+  padding: 24px 16px 20px;
+  margin-bottom: 16px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+
+  .phase-indicator {
+    margin-bottom: 16px;
+    .phase-text {
+      font-size: 12px;
+      font-weight: 600;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.1);
+      padding: 4px 12px;
+      border-radius: 20px;
+      display: inline-block;
+    }
+  }
+
+  .gauge-outer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 12px 0 20px;
+
+    .gauge-dial {
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      border: 8px solid rgba(255, 255, 255, 0.05);
+      border-top-color: #00b4d8;
+      border-right-color: #0077b6;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 0 30px rgba(0, 180, 216, 0.15), inset 0 0 25px rgba(0, 0, 0, 0.5);
+
+      .gauge-needle {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        pointer-events: none;
+
+        .needle-pointer {
+          position: absolute;
+          top: 10px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 4px;
+          height: 30px;
+          background: #38bdf8;
+          border-radius: 2px;
+          box-shadow: 0 0 10px #38bdf8;
+        }
+      }
+
+      .gauge-center-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        z-index: 2;
+
+        .speed-number {
+          font-size: 48px;
+          font-weight: 900;
+          color: #ffffff;
+          line-height: 1;
+          letter-spacing: -1px;
+          text-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+        }
+        .speed-unit {
+          font-size: 14px;
+          font-weight: 700;
+          color: #38bdf8;
+          margin-top: 2px;
+        }
+        .current-phase-tag {
+          font-size: 11px;
+          color: #94a3b8;
+          margin-top: 4px;
+        }
+      }
+    }
+  }
+
+  .progress-bar-container {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    margin: 16px 20px 8px;
+    overflow: hidden;
+
+    .progress-bar-inner {
+      height: 100%;
+      background: linear-gradient(90deg, #00b4d8 0%, #38bdf8 100%);
+      transition: width 0.2s ease;
+      box-shadow: 0 0 8px #00b4d8;
+    }
+  }
+
+  .go-btn-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+
+    .speedtest-go-btn {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #00b4d8 0%, #0077b6 100%);
+      border: 4px solid rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 0 25px rgba(0, 180, 216, 0.5), inset 0 2px 10px rgba(255, 255, 255, 0.4);
+      margin: 0 auto;
+      line-height: 1.2;
+
+      &:active {
+        transform: scale(0.96);
+        box-shadow: 0 0 15px rgba(0, 180, 216, 0.3);
+      }
+
+      .go-text {
+        font-size: 26px;
+        font-weight: 900;
+        letter-spacing: 1px;
+        display: block;
+      }
+      .go-sub {
+        font-size: 10px;
+        opacity: 0.9;
+        display: block;
+        margin-top: 2px;
+      }
+    }
+  }
+}
+
+// 4 大指标网格 (Download / Upload / Ping / Jitter)
+.metrics-dashboard {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  .metric-tile {
+    background: rgba(28, 37, 65, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 14px;
+    position: relative;
+    overflow: hidden;
+
+    &.dl {
+      border-left: 4px solid #00b4d8;
+    }
+    &.ul {
+      border-left: 4px solid #a855f7;
+    }
+    &.ping {
+      border-left: 4px solid #10b981;
+    }
+    &.jitter {
+      border-left: 4px solid #f59e0b;
+    }
+
+    .tile-icon {
+      font-size: 16px;
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      opacity: 0.7;
+    }
+
+    .tile-label {
+      font-size: 11px;
+      color: #94a3b8;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .tile-value {
+      font-size: 22px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1;
+
+      .tile-unit {
+        font-size: 11px;
+        font-weight: 500;
+        color: #64748b;
+      }
+    }
+  }
+}
+
+// 品质评估报告卡片
+.quality-card {
+  background: linear-gradient(135deg, rgba(0, 180, 216, 0.15) 0%, rgba(28, 37, 65, 0.8) 100%);
+  border: 1px solid rgba(0, 180, 216, 0.3);
+  border-radius: 16px;
+  padding: 16px;
+  text-align: center;
+  margin-bottom: 20px;
+
+  .quality-badge {
+    font-size: 16px;
+    font-weight: 800;
+    color: #38bdf8;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .quality-desc {
+    font-size: 12px;
+    color: #cbd5e1;
+    display: block;
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+  .traffic-info {
+    font-size: 10px;
+    color: #64748b;
+    display: block;
+  }
+}
+
+// 权威测速网站推荐专区
+.speed-sites-section {
+  background: rgba(28, 37, 65, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px;
+
+  .section-header {
+    margin-bottom: 14px;
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #f1f5f9;
+      display: block;
+      margin-bottom: 2px;
+    }
+    .section-subtitle {
+      font-size: 11px;
+      color: #94a3b8;
+      display: block;
+    }
+  }
+
+  .site-cards-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    .site-card {
+      background: rgba(11, 19, 43, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.2s ease;
+
+      &:active {
+        background: rgba(0, 180, 216, 0.1);
+      }
+
+      .site-info {
+        flex: 1;
+        margin-right: 10px;
+
+        .site-name {
+          font-size: 13px;
+          font-weight: 700;
+          color: #38bdf8;
+          display: block;
+          margin-bottom: 2px;
+        }
+        .site-desc {
+          font-size: 11px;
+          color: #cbd5e1;
+          display: block;
+          margin-bottom: 4px;
+        }
+        .site-url {
+          font-size: 10px;
+          color: #64748b;
+          font-family: monospace;
+          display: block;
+        }
+      }
+
+      .copy-btn {
+        background: rgba(0, 180, 216, 0.15);
+        border: 1px solid rgba(0, 180, 216, 0.4);
+        color: #38bdf8;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 6px 10px;
+        border-radius: 6px;
+        white-space: nowrap;
+      }
+    }
+  }
+}

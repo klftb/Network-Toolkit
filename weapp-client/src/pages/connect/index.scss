@@ -1,0 +1,77 @@
+page {
+  background-color: #0b0c10;
+  color: #fff;
+}
+
+.connect-page {
+  padding: 20px;
+  min-height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  margin-bottom: 24px;
+}
+.title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0ea5e9;
+  margin-bottom: 6px;
+  display: block;
+}
+.subtitle {
+  font-size: 13px;
+  color: #8892b0;
+}
+
+.tabs-row {
+  display: flex;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  margin-bottom: 16px;
+}
+.tab-item {
+  flex: 1;
+  text-align: center;
+  padding: 10px 0;
+  font-size: 14px;
+  color: #8892b0;
+  position: relative;
+}
+.tab-item.active {
+  color: #0ea5e9;
+  font-weight: bold;
+}
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 20%;
+  width: 60%;
+  height: 2px;
+  background: #0ea5e9;
+}
+
+.tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 隐藏子页面的内部 Header 与背景，让其完美融入 Tabs */
+.tab-content .trace-page,
+.tab-content .latency-page {
+  padding: 0 !important;
+  background: transparent !important;
+  min-height: auto !important;
+}
+
+.tab-content .trace-page > .header,
+.tab-content .latency-page > .header {
+  display: none !important;
+}
+
+.tab-content .latency-page .version-footer {
+  display: none !important;
+}

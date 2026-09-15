@@ -1,0 +1,118 @@
+.latency-page {
+  /* Embedded in connect page, so no bg/padding needed here */
+  box-sizing: border-box;
+}
+
+.action-card {
+  margin-bottom: 20px;
+  .test-btn {
+    width: 100%;
+    background: #0ea5e9;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    height: 48px;
+    line-height: 48px;
+    font-size: 16px;
+    font-weight: 600;
+    &::after { display: none; }
+    &:active { opacity: 0.85; }
+    &[disabled] { opacity: 0.5; }
+  }
+}
+
+.stats-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  .stat-item {
+    flex: 1;
+    background: rgba(31, 40, 51, 0.4);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 14px 10px;
+    text-align: center;
+    backdrop-filter: blur(10px);
+    .stat-val { font-size: 18px; font-weight: 700; color: #fff; display: block; }
+    .stat-label { font-size: 11px; color: #8892b0; margin-top: 4px; display: block; }
+  }
+}
+
+.bar-chart {
+  background: rgba(31, 40, 51, 0.4);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 16px;
+  padding: 16px;
+  backdrop-filter: blur(10px);
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  &:last-child { margin-bottom: 0; }
+}
+
+.bar-label {
+  width: 100px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.region-tag {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  &.cn { background: rgba(14, 165, 233, 0.2); color: #0ea5e9; }
+  &.intl { background: rgba(244, 114, 182, 0.2); color: #f472b6; }
+}
+
+.node-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #cbd5e1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-track {
+  flex: 1;
+  height: 18px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  &.testing {
+    background: linear-gradient(90deg, rgba(14,165,233,0.3) 0%, rgba(14,165,233,0.8) 50%, rgba(14,165,233,0.3) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite;
+  }
+  &.timeout {
+    background: repeating-linear-gradient(45deg, rgba(255,255,255,0.05), rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.1) 4px, rgba(255,255,255,0.1) 8px);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.bar-value {
+  width: 50px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8892b0;
+  flex-shrink: 0;
+}
