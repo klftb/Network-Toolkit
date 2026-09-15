@@ -1,0 +1,11 @@
+{
+	"ios": {
+		"name": "Network Toolkit"
+	},
+	"android": {
+		"name": "Network Toolkit"
+	},
+	"common": {
+		"name": "Network Toolkit"
+	}
+}

@@ -1,1 +1,18 @@
-export default defineAppConfig({ pages: ['pages/index/index', 'pages/subnet/index', 'pages/ip/index', 'pages/ping/index', 'pages/portscan/index', 'pages/diagnose/index', 'pages/wifi/index', 'pages/speedtest/index', 'pages/trace/index'], window: { backgroundTextStyle: 'light', navigationBarBackgroundColor: '#f6f6f6', navigationBarTitleText: 'Network Toolkit', navigationBarTextStyle: 'black' } })
+export default defineAppConfig({
+  pages: [
+    'pages/index/index',
+    'pages/speedtest/index',
+    'pages/target/index',
+    'pages/connect/index',
+    'pages/report/index',
+    'pages/subnet/index',
+    'pages/trace/index',
+    'pages/latency/index'
+  ],
+  window: {
+    backgroundTextStyle: 'light',
+    navigationBarBackgroundColor: '#f8fafc',
+    navigationBarTitleText: 'Network Toolkit',
+    navigationBarTextStyle: 'black'
+  }
+})

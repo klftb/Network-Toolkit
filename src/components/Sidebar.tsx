@@ -147,7 +147,7 @@ export function Sidebar({ currentTool, setCurrentTool, isOpen, setIsOpen }: Side
         
         {!isCollapsed && (
           <div className="px-4 py-3 text-[11px] text-slate-400 text-center border-t border-[#E0E0E0]/50 relative group">
-            <span className="group-hover:opacity-0 transition-opacity">Network Toolkit v1.1<br/>Powered by Fabio Ben</span>
+            <span className="group-hover:opacity-0 transition-opacity">Network Toolkit v1.4<br/>Powered by Fabio Ben</span>
           </div>
         )}
       </div>

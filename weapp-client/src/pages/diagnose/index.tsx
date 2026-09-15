@@ -1,86 +1,129 @@
 import React, { useState } from 'react'
 import { View, Text, Input, Button } from '@tarojs/components'
-import { pingTarget, portScan, whoisLookup, ipLookup } from '../../lib/api'
 import Taro from '@tarojs/taro'
+import {
+  pingTarget,
+  portScan,
+  whoisLookup,
+  ipLookup,
+  PingResult,
+  PortScanItem
+} from '../../lib/api'
 import './index.scss'
 
-const COMMON_PORTS = [21, 22, 25, 53, 80, 443, 3306, 3389, 8080]
+// 前端可真实验证的 Web 端口（HTTP/HTTPS 协议）
+const COMMON_PORTS = [80, 443, 8080, 8443, 8888, 10443]
 
 type CardStatus = 'idle' | 'loading' | 'done' | 'error'
 
+interface PingDiagnoseData extends PingResult {
+  resolvedIp?: string
+  location?: string
+  isp?: string
+}
+
+const initialCards = {
+  ping: { status: 'idle' as CardStatus, data: null as PingDiagnoseData | null },
+  port: { status: 'idle' as CardStatus, data: [] as PortScanItem[] },
+  whois: { status: 'idle' as CardStatus, data: '' }
+}
+
 export default function Diagnose() {
-  const [target, setTarget] = useState('baidu.com')
+  const [target, setTarget] = useState('')
   const [running, setRunning] = useState(false)
+  const [cards, setCards] = useState(initialCards)
 
-  const [pingStatus, setPingStatus] = useState<CardStatus>('idle')
-  const [pingData, setPingData] = useState<any>(null)
-
-  const [ipStatus, setIpStatus] = useState<CardStatus>('idle')
-  const [ipData, setIpData] = useState<any>(null)
-
-  const [portStatus, setPortStatus] = useState<CardStatus>('idle')
-  const [portData, setPortData] = useState<any[]>([])
-
-  const [whoisStatus, setWhoisStatus] = useState<CardStatus>('idle')
-  const [whoisData, setWhoisData] = useState('')
-
-  const reset = () => {
-    setPingStatus('idle'); setPingData(null)
-    setIpStatus('idle'); setIpData(null)
-    setPortStatus('idle'); setPortData([])
-    setWhoisStatus('idle'); setWhoisData('')
+  const updateCard = <K extends keyof typeof initialCards>(
+    key: K,
+    status: CardStatus,
+    data: (typeof initialCards)[K]['data']
+  ) => {
+    setCards(prev => ({
+      ...prev,
+      [key]: { status, data }
+    }))
   }
 
   const handleDiagnose = async () => {
-    if (!target.trim()) return
-    reset()
+    const cleanTarget = target.trim()
+    if (!cleanTarget) return
+
+    setCards({
+      ping: { status: 'loading', data: null },
+      port: { status: 'loading', data: [] },
+      whois: { status: 'loading', data: '' }
+    })
     setRunning(true)
     Taro.vibrateShort({ type: 'light' }).catch(() => {})
 
-    // 1. Ping
-    setPingStatus('loading')
-    try {
-      const d = await pingTarget(target.trim(), 'icmp')
-      setPingData(d)
-      setPingStatus('done')
-      if (d.alive) Taro.vibrateShort({ type: 'light' }).catch(() => {})
-    } catch { setPingStatus('error') }
+    // 1. DNS解析 + HTTP连通性 + 节点分析
+    const runPingAndIp = async () => {
+      try {
+        const [pingRes, ipRes] = await Promise.allSettled([
+          pingTarget(cleanTarget, 'icmp'),
+          ipLookup(cleanTarget)
+        ])
 
-    // 2. IP 归属地 (通过后端代理)
-    setIpStatus('loading')
-    try {
-      const ipRes = await ipLookup(target.trim())
-      setIpData({ ip: ipRes.ip, country_name: ipRes.country, region: ipRes.region, city: ipRes.city, org: ipRes.isp })
-      setIpStatus('done')
-    } catch { setIpStatus('error') }
+        const pData: PingResult = pingRes.status === 'fulfilled' ? pingRes.value : { alive: false, time: null, output: '' }
+        const ipData = ipRes.status === 'fulfilled' ? ipRes.value : null
 
-    // 3. 端口扫描 (并行)
-    setPortStatus('loading')
-    try {
-      const d = await portScan(target.trim(), COMMON_PORTS)
-      setPortData(d.results || [])
-      setPortStatus('done')
-    } catch { setPortStatus('error') }
+        const hasRealIp = ipData?.ip && isIp(ipData.ip)
+        const merged: PingDiagnoseData = {
+          ...pData,
+          resolvedIp: hasRealIp ? ipData.ip : (isIp(cleanTarget) ? cleanTarget : undefined),
+          location: (hasRealIp && ipData) ? `${ipData.country !== '中国' && ipData.country !== '局域网' && ipData.country !== '企业内网' ? ipData.country : ''} ${ipData.region} ${ipData.city}`.trim() : undefined,
+          isp: hasRealIp ? ipData?.isp : undefined
+        }
 
-    // 4. Whois
-    setWhoisStatus('loading')
-    try {
-      const d = await whoisLookup(target.trim())
-      setWhoisData(d.result || '')
-      setWhoisStatus('done')
-    } catch { setWhoisStatus('error') }
+        updateCard('ping', 'done', merged)
+        if (pData.alive) Taro.vibrateShort({ type: 'light' }).catch(() => {})
+      } catch {
+        updateCard('ping', 'error', null)
+      }
+    }
+
+    // 2. 端口扫描任务 (含 10443 端口)
+    const runPort = async () => {
+      try {
+        const d = await portScan(cleanTarget, COMMON_PORTS, 'tcp')
+        updateCard('port', 'done', d.results || [])
+      } catch {
+        updateCard('port', 'error', [])
+      }
+    }
+
+    // 3. Whois 域名数据库查询
+    const runWhois = async () => {
+      try {
+        const d = await whoisLookup(cleanTarget)
+        updateCard('whois', 'done', d.result || '')
+      } catch {
+        updateCard('whois', 'error', '')
+      }
+    }
+
+    await Promise.allSettled([runPingAndIp(), runPort(), runWhois()])
 
     setRunning(false)
     Taro.vibrateShort({ type: 'heavy' }).catch(() => {})
   }
 
-  const statusIcon = (s: CardStatus) => s === 'loading' ? '⏳' : s === 'done' ? '✅' : s === 'error' ? '❌' : '⬜'
+  const statusIcon = (s: CardStatus) => {
+    switch (s) {
+      case 'loading': return '⏳'
+      case 'done': return '✅'
+      case 'error': return '❌'
+      default: return '⬜'
+    }
+  }
+
+  const { ping, port, whois } = cards
 
   return (
     <View className='diagnose-page'>
       <View className='header'>
         <Text className='title'>一键体检</Text>
-        <Text className='subtitle'>输入目标，同时运行 Ping + 归属地 + 端口扫描 + Whois</Text>
+        <Text className='subtitle'>输入目标，一键执行 HTTP连通性 + Web端口检测 + Whois</Text>
       </View>
 
       <View className='search-card'>
@@ -88,7 +131,7 @@ export default function Diagnose() {
           <Input
             value={target}
             onInput={(e) => setTarget(e.detail.value)}
-            placeholder='IP 或域名，如 baidu.com'
+            placeholder='输入目标域名或 IP，如 baidu.com 或 192.168.1.1'
             className='target-input'
           />
           <Button className='go-btn' onClick={handleDiagnose} loading={running} disabled={running}>
@@ -97,68 +140,68 @@ export default function Diagnose() {
         </View>
       </View>
 
-      {/* Ping Card */}
+      {/* HTTP 连通性与网络节点分析 */}
       <View className='diag-card'>
         <View className='card-header'>
-          <Text className='icon'>{statusIcon(pingStatus)}</Text>
-          <Text className='card-title'>Ping 连通性</Text>
+          <Text className='icon'>{statusIcon(ping.status)}</Text>
+          <Text className='card-title'>HTTP 连通性与网络节点分析</Text>
         </View>
-        {pingStatus === 'done' && pingData && (
+        {ping.status === 'done' && ping.data && (
           <View className='card-body'>
-            <View className={`status-line ${pingData.alive ? 'alive' : 'dead'}`}>
+            <View className={`status-line ${ping.data.alive ? 'alive' : 'dead'}`}>
               <View className='dot'></View>
-              <Text>{pingData.alive ? `连通 — ${pingData.time}ms` : '不可达'}</Text>
+              <Text>{ping.data.alive ? `连通 — 延迟 ${ping.data.time}ms` : '目标不可达 / 超时'}</Text>
             </View>
+
+            {ping.data.resolvedIp && (
+              <View className='ip-geo-info'>
+                <View className='ip-badge-row'>
+                  <Text className='badge-tag'>解析 IP</Text>
+                  <Text className='ip-val'>{ping.data.resolvedIp}</Text>
+                </View>
+                {ping.data.location && (
+                  <Text className='geo-val'>📍 节点网络：{ping.data.location} · {ping.data.isp || '公网网络'}</Text>
+                )}
+              </View>
+            )}
           </View>
         )}
       </View>
 
-      {/* IP Info Card */}
+      {/* 常用端口扫描 Card (含 10443) */}
       <View className='diag-card'>
         <View className='card-header'>
-          <Text className='icon'>{statusIcon(ipStatus)}</Text>
-          <Text className='card-title'>IP 归属地</Text>
+          <Text className='icon'>{statusIcon(port.status)}</Text>
+          <Text className='card-title'>常用端口扫描 ({COMMON_PORTS.length} 个端口 · 含 10443)</Text>
         </View>
-        {ipStatus === 'done' && ipData && (
-          <View className='card-body'>
-            <Text className='info-line'>{ipData.ip} — {ipData.country_name} {ipData.region} {ipData.city}</Text>
-            <Text className='info-sub'>{ipData.org}</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Port Scan Card */}
-      <View className='diag-card'>
-        <View className='card-header'>
-          <Text className='icon'>{statusIcon(portStatus)}</Text>
-          <Text className='card-title'>端口扫描 ({COMMON_PORTS.length} 个常用端口)</Text>
-        </View>
-        {portStatus === 'done' && portData.length > 0 && (
+        {port.status === 'done' && port.data.length > 0 && (
           <View className='card-body'>
             <View className='port-grid'>
-              {portData.map((r, i) => (
+              {port.data.map((r, i) => (
                 <View key={i} className={`port-chip ${r.status}`}>
                   <Text>{r.port}</Text>
                 </View>
               ))}
             </View>
             <Text className='info-sub'>
-              开放: {portData.filter(r => r.status === 'open').map(r => r.port).join(', ') || '无'}
+              🟢 开放端口: {port.data.filter(r => r.status === 'open').map(r => r.port).join(', ') || '无'}
             </Text>
           </View>
         )}
       </View>
 
-      {/* Whois Card */}
+      {/* Whois 域名注册信息 Card */}
       <View className='diag-card'>
         <View className='card-header'>
-          <Text className='icon'>{statusIcon(whoisStatus)}</Text>
-          <Text className='card-title'>Whois 信息</Text>
+          <Text className='icon'>{statusIcon(whois.status)}</Text>
+          <Text className='card-title'>Whois 域名注册信息</Text>
         </View>
-        {whoisStatus === 'done' && whoisData && (
+        {whois.status === 'done' && whois.data && (
           <View className='card-body'>
             <View className='whois-box'>
-              <Text className='whois-text'>{whoisData.substring(0, 800)}{whoisData.length > 800 ? '...' : ''}</Text>
+              <Text className='whois-text' userSelect>
+                {whois.data.substring(0, 800)}{whois.data.length > 800 ? '...' : ''}
+              </Text>
             </View>
           </View>
         )}

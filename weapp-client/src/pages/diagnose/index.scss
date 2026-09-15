@@ -78,14 +78,50 @@
     align-items: center;
     gap: 8px;
     font-size: 15px;
-    font-weight: 500;
+    font-weight: 600;
+    margin-bottom: 8px;
     .dot { width: 10px; height: 10px; border-radius: 50%; }
     &.alive { color: #059669; .dot { background-color: #10b981; } }
     &.dead { color: #ef4444; .dot { background-color: #ef4444; } }
   }
 
+  .ip-geo-info {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-top: 8px;
+
+    .ip-badge-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+
+      .badge-tag {
+        font-size: 10px;
+        font-weight: 700;
+        background: #0284c7;
+        color: #ffffff;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .ip-val {
+        font-size: 13px;
+        font-weight: 700;
+        color: #0f172a;
+      }
+    }
+
+    .geo-val {
+      font-size: 12px;
+      color: #64748b;
+      display: block;
+    }
+  }
+
   .info-line { font-size: 14px; color: #1e293b; display: block; margin-bottom: 4px; }
-  .info-sub { font-size: 12px; color: #94a3b8; display: block; margin-top: 6px; }
+  .info-sub { font-size: 12px; color: #059669; font-weight: 600; display: block; margin-top: 8px; }
 
   .port-grid {
     display: flex;
@@ -99,7 +135,7 @@
     border-radius: 6px;
     font-size: 13px;
     font-weight: 600;
-    &.open { background-color: #ecfdf5; color: #059669; }
+    &.open { background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
     &.closed { background-color: #f1f5f9; color: #94a3b8; }
     &.filtered { background-color: #fffbeb; color: #d97706; }
   }

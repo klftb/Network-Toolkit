@@ -1,5 +1,5 @@
 export default definePageConfig({
-  navigationBarTitleText: '公网 IP 查询',
+  navigationBarTitleText: '网络节点分析',
   navigationBarBackgroundColor: '#f6f6f6',
   navigationBarTextStyle: 'black',
   backgroundColor: '#f6f6f6'

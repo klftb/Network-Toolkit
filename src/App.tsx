@@ -89,7 +89,7 @@ export default function App() {
           {visitedTools.has('ftp') && <div style={{ display: currentTool === 'ftp' ? 'block' : 'none', height: '100%' }}><FtpTool /></div>}
           {visitedTools.has('wifi') && <div style={{ display: currentTool === 'wifi' ? 'block' : 'none', height: '100%' }}><WifiTool /></div>}
           {visitedTools.has('textdiff') && <div style={{ display: currentTool === 'textdiff' ? 'block' : 'none', height: '100%' }}><TextDiffTool /></div>}
-          {visitedTools.has('password') && <div style={{ display: currentTool === 'password' ? 'block' : 'none', height: '100%' }}><PasswordTool /></div>}
+          {visitedTools.has('password') && <div style={{ display: currentTool === 'password' ? 'block' : 'none', height: '100%' }}><PasswordTool isActive={currentTool === 'password'} /></div>}
           {visitedTools.has('settings') && <div style={{ display: currentTool === 'settings' ? 'block' : 'none', height: '100%' }}><SettingsTool /></div>}
           {visitedTools.has('history') && <div style={{ display: currentTool === 'history' ? 'block' : 'none', height: '100%' }}><HistoryTool setCurrentTool={handleSetTool} /></div>}
           <div style={{ display: (currentTool === 'dashboard' || !currentTool) ? 'block' : 'none', height: '100%' }}>

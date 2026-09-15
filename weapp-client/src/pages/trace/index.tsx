@@ -1,126 +1,44 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { View, Text, Input, Button, ScrollView } from '@tarojs/components'
+import { View, Text, Input, ScrollView, Picker } from '@tarojs/components'
 import Taro from '@tarojs/taro'
-import { ipLookup, pingTarget } from '../../lib/api'
+import { isIp, resolveDnsDoh, checkTcpPort, pingTarget, ipLookup } from '../../lib/api'
 import './index.scss'
 
-interface Hop {
-  hopNum: number
-  ip: string
-  location: string
-  loss: number
-  sent: number
-  recv: number
-  last: number
-  avg: number
-  best: number
-  worst: number
-  times: number[]
+interface PacketLog {
+  seq: number
+  time: number | null
+  status: 'success' | 'timeout' | 'error'
+  timestamp: string
+  diff: number | null // 与平均值的偏差
 }
 
-const generateHops = (localIp: string, localIsp: string, targetIp: string, targetDomain: string): Hop[] => {
-  const hops: Hop[] = []
-  
-  // 1. 本地网关
-  const gwIp = localIp ? localIp.replace(/\.\d+\.\d+$/, '.1.1') : '192.168.1.1'
-  hops.push({
-    hopNum: 1,
-    ip: gwIp,
-    location: '局域网网关',
-    loss: 0, sent: 0, recv: 0, last: 0, avg: 0, best: 9999, worst: 0, times: []
-  })
-  
-  // 2. 宽带运营商城域网出口
-  const cityIp = localIp ? localIp.replace(/\.\d+$/, '.254') : '100.64.0.1'
-  hops.push({
-    hopNum: 2,
-    ip: cityIp,
-    location: '城域网接入节点',
-    loss: 0, sent: 0, recv: 0, last: 0, avg: 0, best: 9999, worst: 0, times: []
-  })
-
-  // 3. 骨干网入口 (根据 ISP 确定)
-  let backboneIp = '202.97.12.85'
-  let backboneLoc = '骨干网入口'
-  const isTelecom = localIsp.includes('电信') || localIsp.toLowerCase().includes('telecom')
-  const isUnicom = localIsp.includes('联通') || localIsp.toLowerCase().includes('unicom')
-  const isMobile = localIsp.includes('移动') || localIsp.toLowerCase().includes('mobile')
-
-  if (isTelecom) {
-    backboneIp = '202.97.43.106'
-    backboneLoc = '中国电信 163骨干网'
-  } else if (isUnicom) {
-    backboneIp = '219.158.3.142'
-    backboneLoc = '中国联通 骨干网'
-  } else if (isMobile) {
-    backboneIp = '221.176.15.210'
-    backboneLoc = '中国移动 骨干网'
-  }
-  hops.push({
-    hopNum: 3,
-    ip: backboneIp,
-    location: backboneLoc,
-    loss: 0, sent: 0, recv: 0, last: 0, avg: 0, best: 9999, worst: 0, times: []
-  })
-
-  // 4. 国际出口网关 (若目标为海外，附加国际延迟)
-  const isGlobal = !targetDomain.endsWith('.cn') && 
-    !targetDomain.includes('baidu') && 
-    !targetDomain.includes('qq') && 
-    !targetDomain.includes('jd') && 
-    !targetDomain.includes('douyin') && 
-    !targetDomain.includes('163')
-    
-  if (isGlobal) {
-    hops.push({
-      hopNum: 4,
-      ip: '202.97.94.86',
-      location: '上海国际出口网关',
-      loss: 0, sent: 0, recv: 0, last: 0, avg: 0, best: 9999, worst: 0, times: []
-    })
-    
-    hops.push({
-      hopNum: 5,
-      ip: '59.43.180.22',
-      location: '中美跨海海底光缆段',
-      loss: 0, sent: 0, recv: 0, last: 0, avg: 0, best: 9999, worst: 0, times: []
-    })
-  } else {
-    hops.push({
-      hopNum: 4,
-      ip: isTelecom ? '202.97.34.125' : '219.158.9.22',
-      location: `${localIsp || '骨干网'} 核心交换节点`,
-      loss: 0, sent: 0, recv: 0, last: 0, avg: 0, best: 9999, worst: 0, times: []
-    })
-  }
-
-  // 5. 最终目标节点
-  hops.push({
-    hopNum: hops.length + 1,
-    ip: targetIp,
-    location: '目标主机节点',
-    loss: 0, sent: 0, recv: 0, last: 0, avg: 0, best: 9999, worst: 0, times: []
-  })
-
-  return hops
-}
+const PRESETS = ['baidu.com', 'qq.com', '1.1.1.1', '114.114.114.114', 'google.com']
+const MTR_COUNT_OPTIONS = [10, 20, 50, 100]
 
 export default function TracePage() {
-  const [target, setTarget] = useState('baidu.com')
-  const [mode, setMode] = useState<'tracert' | 'mtr'>('tracert')
+  const [target, setTarget] = useState('qq.com')
+  const [mtrCount, setMtrCount] = useState(20)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [tracertLogs, setTracertLogs] = useState<string[]>([])
-  const [mtrHops, setMtrHops] = useState<Hop[]>([])
-  const [mtrRound, setMtrRound] = useState(0)
 
-  const activeModeRef = useRef(mode)
+  // 探测元数据
+  const [resolvedIp, setResolvedIp] = useState('')
+  const [geoInfo, setGeoInfo] = useState('')
+  const [dnsTime, setDnsTime] = useState<number | null>(null)
+
+  // 统计数据
+  const [currentRound, setCurrentRound] = useState(0)
+  const [sentCount, setSentCount] = useState(0)
+  const [recvCount, setRecvCount] = useState(0)
+  const [lastRtt, setLastRtt] = useState<number | null>(null)
+  const [bestRtt, setBestRtt] = useState<number | null>(null)
+  const [worstRtt, setWorstRtt] = useState<number | null>(null)
+  const [avgRtt, setAvgRtt] = useState<number | null>(null)
+  const [jitter, setJitter] = useState<number | null>(null)
+  const [packetLogs, setPacketLogs] = useState<PacketLog[]>([])
+
   const isRunningRef = useRef(false)
   const timerRef = useRef<any>(null)
-
-  useEffect(() => {
-    activeModeRef.current = mode
-  }, [mode])
 
   useEffect(() => {
     return () => {
@@ -137,7 +55,7 @@ export default function TracePage() {
     setLoading(false)
   }
 
-  const startScan = async () => {
+  const handleStart = async () => {
     if (!target.trim()) {
       setError('请输入目标 IP 或域名')
       return
@@ -148,253 +66,356 @@ export default function TracePage() {
     setLoading(true)
     isRunningRef.current = true
 
+    // 重置统计数据
+    setCurrentRound(0)
+    setSentCount(0)
+    setRecvCount(0)
+    setLastRtt(null)
+    setBestRtt(null)
+    setWorstRtt(null)
+    setAvgRtt(null)
+    setJitter(null)
+    setPacketLogs([])
+    setResolvedIp('')
+    setGeoInfo('正在解析目标网络属性...')
+
     const cleanTarget = target.trim().replace(/^https?:\/\//i, '').split('/')[0]
-    let targetIp = cleanTarget
-    let localIp = '192.168.1.132'
-    let localIsp = '中国电信'
+    const targetHost = cleanTarget.split(':')[0]
+    const targetPort = cleanTarget.includes(':') ? parseInt(cleanTarget.split(':')[1], 10) : 443
 
-    // 1. 本地信息获取和 DNS 解析
-    try {
-      const localInfo = await ipLookup()
-      localIp = localInfo.ip || '192.168.1.132'
-      localIsp = localInfo.isp || '中国电信'
-    } catch {}
+    let targetIp = targetHost
+    const isHostIp = isIp(targetHost)
 
-    try {
-      const targetInfo = await ipLookup(cleanTarget)
-      targetIp = targetInfo.ip
-    } catch (dnsErr: any) {
-      setError(`DNS 解析失败: ${dnsErr.message || '未知错误'}`)
-      setLoading(false)
-      isRunningRef.current = false
-      return
-    }
-
-    if (activeModeRef.current === 'tracert') {
-      runTracert(localIp, localIsp, targetIp, cleanTarget)
+    // 1. 若为域名，先在手机端执行真实 DNS 解析
+    if (!isHostIp) {
+      const dnsStart = Date.now()
+      try {
+        const resolved = await resolveDnsDoh(targetHost)
+        const dTime = Date.now() - dnsStart
+        setDnsTime(dTime)
+        if (resolved && isIp(resolved)) {
+          targetIp = resolved
+          setResolvedIp(resolved)
+        }
+      } catch {
+        targetIp = targetHost
+      }
     } else {
-      runMtr(localIp, localIsp, targetIp, cleanTarget)
+      setResolvedIp(targetHost)
+      setDnsTime(0)
     }
+
+    // 2. 获取目标 IP 的物理归属地
+    ipLookup(targetIp).then(info => {
+      setGeoInfo(`${info.region || ''} ${info.city || ''} · ${info.isp || '未知运营商'}`.trim())
+    }).catch(() => {
+      setGeoInfo('公网骨干网络节点')
+    })
+
+    // 3. 开始连续 MTR 发包探测
+    runMtrProbeLoop(targetIp, targetHost, targetPort, mtrCount)
   }
 
-  const runTracert = async (localIp: string, localIsp: string, targetIp: string, domain: string) => {
-    const hops = generateHops(localIp, localIsp, targetIp, domain)
-    const logs = [`通过最多 30 个跃点跟踪到 ${domain} [${targetIp}] 的路由:\n`]
-    setTracertLogs([...logs])
+  const runMtrProbeLoop = (targetIp: string, host: string, port: number, totalRounds: number) => {
+    let sent = 0
+    let recv = 0
+    const rttList: number[] = []
+    const logs: PacketLog[] = []
 
-    for (let i = 0; i < hops.length; i++) {
-      if (!isRunningRef.current) break
-      
-      const hop = hops[i]
-      const times: string[] = []
-      
-      // 每一跃点做三次探测
-      for (let p = 0; p < 3; p++) {
-        if (!isRunningRef.current) break
-        
-        let t = 0
-        if (hop.ip === targetIp) {
-          // 最终节点，发起真实 ping
-          try {
-            const pRes = await pingTarget(targetIp, 'icmp')
-            t = pRes.time || Math.floor(Math.random() * 15) + 10
-          } catch {
-            t = -1
-          }
+    const executeProbe = async () => {
+      if (!isRunningRef.current) return
+
+      sent++
+      setCurrentRound(sent)
+      setSentCount(sent)
+
+      const start = Date.now()
+      let currentRtt: number | null = null
+      let status: 'success' | 'timeout' | 'error' = 'timeout'
+
+      try {
+        // 优先使用手机 TCP/HTTP 握手精准测算端到端往返时延
+        const tcpRes = await checkTcpPort(targetIp, port, 1200)
+        if (tcpRes.status === 'open' && tcpRes.latency) {
+          currentRtt = tcpRes.latency
+          status = 'success'
         } else {
-          // 中间节点，模拟基础延迟并抖动
-          const baseTime = hop.hopNum * 5 + (hop.location.includes('海底光缆') ? 120 : 0)
-          t = baseTime + Math.floor(Math.random() * 8) - 3
-          t = Math.max(t, 1)
+          // 降级使用 UDP/ICMP 探测
+          const pingRes = await pingTarget(host, 'icmp')
+          if (pingRes.alive && pingRes.time) {
+            currentRtt = pingRes.time
+            status = 'success'
+          } else {
+            // UDP 探测也失败，记为超时
+            status = 'timeout'
+          }
         }
-        
-        times.push(t >= 0 ? `${t} ms` : '*')
-        await new Promise(resolve => setTimeout(resolve, 150))
+      } catch {
+        status = 'timeout'
       }
 
-      const timeStr = times.map(str => str.padStart(6)).join(' ')
-      logs.push(`${String(hop.hopNum).padStart(2)}  ${timeStr}  ${hop.ip} (${hop.location})`)
-      setTracertLogs([...logs])
-    }
+      const now = new Date()
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.${String(Math.floor(now.getMilliseconds() / 100))}`
 
-    logs.push('\n跟踪完成。')
-    setTracertLogs([...logs])
-    setLoading(false)
-    isRunningRef.current = false
-  }
+      if (status === 'success' && currentRtt !== null) {
+        recv++
+        setRecvCount(recv)
+        rttList.push(currentRtt)
 
-  const runMtr = async (localIp: string, localIsp: string, targetIp: string, domain: string) => {
-    const hops = generateHops(localIp, localIsp, targetIp, domain)
-    setMtrHops(hops)
-    setMtrRound(0)
+        const curAvg = Math.round(rttList.reduce((a, b) => a + b, 0) / rttList.length)
+        const curBest = Math.min(...rttList)
+        const curWorst = Math.max(...rttList)
 
-    let round = 0
-    const maxRounds = 10
-
-    const nextMtrTick = async () => {
-      if (!isRunningRef.current) return
-      
-      round++
-      setMtrRound(round)
-      
-      // 实测最终目的延迟
-      let finalDelay = -1
-      try {
-        const pRes = await pingTarget(targetIp, 'icmp')
-        finalDelay = pRes.time || Math.floor(Math.random() * 12) + 12
-      } catch {}
-
-      setMtrHops(prevHops => {
-        return prevHops.map(hop => {
-          let delay = -1
-          
-          if (hop.ip === targetIp) {
-            delay = finalDelay
-          } else {
-            // 偶然丢包 (0.5% 概率)
-            if (Math.random() < 0.005) {
-              delay = -1
-            } else {
-              const baseTime = hop.hopNum * 5 + (hop.location.includes('海底光缆') ? 120 : 0)
-              delay = baseTime + Math.floor(Math.random() * 6) - 2
-              delay = Math.max(delay, 1)
-            }
+        // 计算抖动 Jitter (相邻包延时差的平均值)
+        let curJitter = 0
+        if (rttList.length > 1) {
+          let diffSum = 0
+          for (let i = 1; i < rttList.length; i++) {
+            diffSum += Math.abs(rttList[i] - rttList[i - 1])
           }
+          curJitter = Math.round((diffSum / (rttList.length - 1)) * 10) / 10
+        }
 
-          const newSent = hop.sent + 1
-          let newRecv = hop.recv
-          let newLoss = hop.loss
-          
-          if (delay >= 0) {
-            newRecv++
-            hop.times.push(delay)
-          }
-          
-          newLoss = Math.round(((newSent - newRecv) / newSent) * 100)
-          
-          const last = delay >= 0 ? delay : 0
-          const best = delay >= 0 ? Math.min(hop.best, delay) : hop.best
-          const worst = delay >= 0 ? Math.max(hop.worst, delay) : hop.worst
-          const avg = hop.times.length > 0 ? Math.round(hop.times.reduce((a, b) => a + b, 0) / hop.times.length) : 0
+        setLastRtt(currentRtt)
+        setAvgRtt(curAvg)
+        setBestRtt(curBest)
+        setWorstRtt(curWorst)
+        setJitter(curJitter)
 
-          return {
-            ...hop,
-            sent: newSent,
-            recv: newRecv,
-            loss: newLoss,
-            last,
-            avg,
-            best,
-            worst
-          }
+        logs.unshift({
+          seq: sent,
+          time: currentRtt,
+          status: 'success',
+          timestamp: timeStr,
+          diff: currentRtt - curAvg
         })
-      })
+      } else {
+        logs.unshift({
+          seq: sent,
+          time: null,
+          status: 'timeout',
+          timestamp: timeStr,
+          diff: null
+        })
+      }
 
-      if (round < maxRounds && isRunningRef.current) {
-        timerRef.current = setTimeout(nextMtrTick, 1000)
+      setPacketLogs([...logs])
+
+      if (sent < totalRounds && isRunningRef.current) {
+        // 每隔 350ms 发送下一轮探测包
+        timerRef.current = setTimeout(executeProbe, 350)
       } else {
         setLoading(false)
         isRunningRef.current = false
+        Taro.vibrateShort({ type: 'light' }).catch(() => {})
       }
     }
 
-    timerRef.current = setTimeout(nextMtrTick, 100)
+    timerRef.current = setTimeout(executeProbe, 50)
   }
+
+  const copyMtrReport = () => {
+    if (sentCount === 0) return
+    const lossRate = sentCount > 0 ? (((sentCount - recvCount) / sentCount) * 100).toFixed(1) : '0.0'
+    const report = [
+      `=== 手机端真实 MTR 链路质量报告 ===`,
+      `测试目标: ${target}`,
+      `解析 IP: ${resolvedIp || target}`,
+      `物理归属: ${geoInfo || '公网节点'}`,
+      `DNS 解析耗时: ${dnsTime !== null ? `${dnsTime} ms` : '-'}`,
+      `探测轮次: ${sentCount} 轮 (成功: ${recvCount}, 丢包: ${sentCount - recvCount})`,
+      `丢包率: ${lossRate}%`,
+      `最新延迟 (Last): ${lastRtt !== null ? `${lastRtt} ms` : '-'}`,
+      `平均延迟 (Avg): ${avgRtt !== null ? `${avgRtt} ms` : '-'}`,
+      `最优延迟 (Best): ${bestRtt !== null ? `${bestRtt} ms` : '-'}`,
+      `最差延迟 (Worst): ${worstRtt !== null ? `${worstRtt} ms` : '-'}`,
+      `网络抖动 (Jitter): ${jitter !== null ? `${jitter} ms` : '-'}`,
+      `测试方式: 手机真机原生直发探测包 (无虚拟节点)`
+    ].join('\n')
+
+    Taro.setClipboardData({
+      data: report,
+      success: () => Taro.showToast({ title: 'MTR报告已复制', icon: 'success' })
+    })
+  }
+
+  const lossRateNum = sentCount > 0 ? Math.round(((sentCount - recvCount) / sentCount) * 100) : 0
 
   return (
     <View className='trace-page'>
       <View className='header'>
-        <Text className='title'>Trace & MTR 诊断</Text>
-        <Text className='subtitle'>路由跳数与丢包诊断工具 (免本地后端高可用架构)</Text>
+        <Text className='title'>TCP Ping / 连通性测试</Text>
+        <Text className='subtitle'>连续探测目标主机的网络延迟与丢包情况</Text>
       </View>
 
       <View className='control-card'>
-        <View className='tab-header'>
-          <View 
-            className={`tab-item ${mode === 'tracert' ? 'active' : ''}`}
-            onClick={() => { if (!loading) setMode('tracert') }}
-          >
-            Traceroute (路由追踪)
-          </View>
-          <View 
-            className={`tab-item ${mode === 'mtr' ? 'active' : ''}`}
-            onClick={() => { if (!loading) setMode('mtr') }}
-          >
-            MTR (链路多发诊断)
+        <View className='mode-banner'>
+          <Text className='banner-icon'>🛡️</Text>
+          <Text className='banner-text'>纯前端真实测速模式：100% 使用手机当前 WiFi / 蜂窝网络直连目标发包，拒绝任何模拟中间数据。</Text>
+        </View>
+
+        <View className='presets-row'>
+          <Text className='preset-label'>快捷目标：</Text>
+          <View className='preset-list'>
+            {PRESETS.map((p) => (
+              <View key={p} className='preset-chip' onClick={() => { setTarget(p); if (error) setError(''); }}>
+                <Text>{p}</Text>
+              </View>
+            ))}
           </View>
         </View>
 
-        <View className='input-group'>
-          <Input 
-            value={target}
-            onInput={(e) => setTarget(e.detail.value)}
-            placeholder='例如 baidu.com 或 180.101.49.44'
-            disabled={loading}
-          />
+        <View className='form-row-wrap'>
+          <View className='input-wrapper'>
+            <Input
+              type='text'
+              value={target}
+              onInput={(e) => {
+                setTarget(e.detail.value)
+                if (error) setError('')
+              }}
+              placeholder='例如 qq.com 或 113.108.81.189'
+              className='trace-input'
+            />
+          </View>
+
+          <View className='count-picker-box'>
+            <Picker
+              mode='selector'
+              range={MTR_COUNT_OPTIONS.map(c => `${c} 轮`)}
+              value={MTR_COUNT_OPTIONS.indexOf(mtrCount)}
+              onChange={(e) => setMtrCount(MTR_COUNT_OPTIONS[e.detail.value])}
+            >
+              <View className='picker-btn'>
+                <Text className='picker-text'>{mtrCount} 轮</Text>
+              </View>
+            </Picker>
+          </View>
+
           {loading ? (
-            <Button className='action-btn stop' onClick={stopScan}>停止</Button>
+            <View className='action-btn stop' onClick={stopScan} hoverClass='btn-active'>
+              <Text>停止</Text>
+            </View>
           ) : (
-            <Button className='action-btn' onClick={startScan}>开始</Button>
+            <View className='action-btn' onClick={handleStart} hoverClass='btn-active'>
+              <Text>开始测速</Text>
+            </View>
           )}
         </View>
 
         {error && <Text className='error-text'>{error}</Text>}
       </View>
 
-      {/* Traceroute 终端视图 */}
-      {mode === 'tracert' && (tracertLogs.length > 0 || loading) && (
-        <View className='terminal-container'>
-          <View className='terminal-header'>
-            <View className='dot red'></View>
-            <View className='dot yellow'></View>
-            <View className='dot green'></View>
-            <Text className='title-text'>Traceroute Terminal</Text>
+      {/* 探测信息卡片 */}
+      {(resolvedIp || loading || sentCount > 0) && (
+        <View className='target-info-card'>
+          <View className='target-info-header'>
+            <View className='target-host-box'>
+              <Text className='target-title'>{target}</Text>
+              {resolvedIp && <Text className='target-ip-badge'>{resolvedIp}</Text>}
+            </View>
+            {loading && <Text className='live-badge-blink'>🟢 实时探测中 ({currentRound}/{mtrCount})</Text>}
           </View>
-          <ScrollView scrollY scrollX scrollWithAnimation className='terminal-body'>
-            <Text className='terminal-text'>{tracertLogs.join('\n')}</Text>
-          </ScrollView>
+
+          <View className='target-meta-row'>
+            <Text className='meta-item'>📍 {geoInfo || '正在分析节点线路...'}</Text>
+            {dnsTime !== null && dnsTime > 0 && <Text className='meta-item'>⚡ DNS 解析: {dnsTime}ms</Text>}
+          </View>
         </View>
       )}
 
-      {/* MTR 表格视图 */}
-      {mode === 'mtr' && (mtrHops.length > 0 || loading) && (
-        <View className='mtr-container'>
-          <View className='mtr-header-status'>
-            <Text className='round-count'>测速轮数: {mtrRound} / 10</Text>
-            {loading && <Text className='status-dot-blink'>实时刷新中</Text>}
+      {/* 核心指标看板 */}
+      {sentCount > 0 && (
+        <View className='stats-grid'>
+          <View className='stat-card'>
+            <Text className='stat-label'>平均延迟 (Avg)</Text>
+            <Text className='stat-val primary'>{avgRtt !== null ? `${avgRtt} ms` : '--'}</Text>
           </View>
-          
-          <ScrollView scrollX className='table-scroll'>
-            <View className='mtr-table'>
-              <View className='tr th'>
-                <View className='td col-num'>#</View>
-                <View className='td col-host'>节点主机 / 归属</View>
-                <View className='td col-loss'>Loss%</View>
-                <View className='td col-sent'>Sent</View>
-                <View className='td col-last'>Last</View>
-                <View className='td col-avg'>Avg</View>
-                <View className='td col-best'>Best</View>
-                <View className='td col-worst'>Wrst</View>
-              </View>
+          <View className='stat-card'>
+            <Text className='stat-label'>最新延迟 (Last)</Text>
+            <Text className='stat-val'>{lastRtt !== null ? `${lastRtt} ms` : '--'}</Text>
+          </View>
+          <View className='stat-card'>
+            <Text className='stat-label'>最优 / 最差</Text>
+            <Text className='stat-val sub'>{bestRtt !== null ? `${bestRtt}` : '-'} / {worstRtt !== null ? `${worstRtt} ms` : '-'}</Text>
+          </View>
+          <View className='stat-card'>
+            <Text className='stat-label'>网络抖动 (Jitter)</Text>
+            <Text className={`stat-val ${jitter !== null && jitter < 5 ? 'good' : 'warn'}`}>
+              {jitter !== null ? `±${jitter} ms` : '--'}
+            </Text>
+          </View>
+          <View className='stat-card'>
+            <Text className='stat-label'>丢包率 (Loss)</Text>
+            <Text className={`stat-val ${lossRateNum === 0 ? 'good' : 'bad'}`}>
+              {lossRateNum}% ({sentCount - recvCount}/{sentCount})
+            </Text>
+          </View>
+          <View className='stat-card'>
+            <Text className='stat-label'>成功收包率</Text>
+            <Text className='stat-val good'>{sentCount > 0 ? `${Math.round((recvCount / sentCount) * 100)}%` : '--'}</Text>
+          </View>
+        </View>
+      )}
 
-              {mtrHops.map((hop) => (
-                <View className='tr' key={hop.hopNum}>
-                  <View className='td col-num'>{hop.hopNum}</View>
-                  <View className='td col-host'>
-                    <Text className='host-ip'>{hop.ip}</Text>
-                    <Text className='host-loc'>{hop.location}</Text>
-                  </View>
-                  <View className={`td col-loss ${hop.loss > 0 ? 'bad' : 'good'}`}>
-                    {hop.loss}%
-                  </View>
-                  <View className='td col-sent'>{hop.sent}</View>
-                  <View className='td col-last'>{hop.last}ms</View>
-                  <View className='td col-avg'>{hop.avg}ms</View>
-                  <View className='td col-best'>{hop.best === 9999 ? '-' : `${hop.best}ms`}</View>
-                  <View className='td col-worst'>{hop.worst}ms</View>
-                </View>
-              ))}
+      {/* 延迟波形迷你图 */}
+      {packetLogs.length > 0 && (
+        <View className='sparkline-card'>
+          <View className='sparkline-header'>
+            <Text className='card-title'>📈 往返延迟波动轨迹</Text>
+            <View className='copy-btn' onClick={copyMtrReport}>
+              <Text>📋 复制完整报告</Text>
             </View>
+          </View>
+          <View className='sparkline-bars'>
+            {packetLogs.slice(0, 30).reverse().map((p) => {
+              const heightPct = p.time ? Math.min(Math.max((p.time / ((worstRtt || 100) * 1.2)) * 100, 15), 100) : 5
+              const isTimeOut = p.status === 'timeout'
+              return (
+                <View key={p.seq} className='bar-col'>
+                  <View
+                    className={`bar-fill ${isTimeOut ? 'timeout' : p.time && p.time < 50 ? 'good' : 'warn'}`}
+                    style={{ height: `${heightPct}%` }}
+                  />
+                  <Text className='bar-seq'>#{p.seq}</Text>
+                </View>
+              )
+            })}
+          </View>
+        </View>
+      )}
+
+      {/* 逐包详细探测日志流 */}
+      {packetLogs.length > 0 && (
+        <View className='logs-container'>
+          <Text className='card-title'>📋 逐轮探测明细</Text>
+          <ScrollView scrollY className='logs-scroll'>
+            {packetLogs.map((p) => (
+              <View key={p.seq} className='log-row'>
+                <View className='log-left'>
+                  <Text className='seq-badge'>包 #{p.seq}</Text>
+                  <Text className='log-time'>{p.timestamp}</Text>
+                </View>
+                <View className='log-right'>
+                  {p.status === 'success' ? (
+                    <>
+                      <Text className='rtt-text'>{p.time} ms</Text>
+                      {p.diff !== null && (
+                        <Text className={`diff-text ${p.diff > 0 ? 'plus' : 'minus'}`}>
+                          {p.diff > 0 ? `+${p.diff}ms` : p.diff < 0 ? `${p.diff}ms` : '0ms'}
+                        </Text>
+                      )}
+                      <Text className='status-tag success'>成功</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text className='timeout-text'>请求超时 (Timeout)</Text>
+                      <Text className='status-tag timeout'>丢包</Text>
+                    </>
+                  )}
+                </View>
+              </View>
+            ))}
           </ScrollView>
         </View>
       )}
